@@ -30,15 +30,21 @@ def comma_value(max_buy):
 
 
 class Main:
+
+
     def __init__(self):
         self.__FINISH = False
         self.margin = 0.10
-        self.min_margin = 0.05
+        self.min_margin = 0.02
+        self.fees = 0.10
         self.storage = ""
         self.mode = 0
         self.capital = 5000
         self.volume_multiplier = 5
         self.sell_price = 0.00
+        self.BUY = 0
+        self.SELL = 1
+        self.OFF = 2
 
 
         self.setup()
@@ -50,9 +56,9 @@ class Main:
 
 
     def display_header(self):
-        if self.mode == 0:
+        if self.mode == self.BUY:
             hr_mode = "Buy"
-        elif self.mode == 1:
+        elif self.mode == self.SELL:
             hr_mode = "Sell"
         else:
             hr_mode = "Off"
@@ -83,11 +89,11 @@ class Main:
                 print("Quitting")
                 self.__FINISH = True
             if users_input == "b":
-                self.mode = 0
+                self.mode = self.BUY
             if users_input == "s":
-                self.mode = 1
+                self.mode = self.SELL 
             if users_input == "o":
-                self.mode = 2
+                self.mode = OFF
 
             if users_input:
                 self.clear_term()
@@ -98,13 +104,22 @@ class Main:
         return data
 
     def calculate_margin_sell(self, value):
+        cost = self.calculate_fees(value)
         margin = self.margin + 1
-        value_with_margin = value * margin
+        value_with_margin = cost * margin
         return round(value_with_margin, 2)
 
-    def calculate_sell_cost(self, value):
-        margin = self.min_margin + 1
-        value_with_margin = value * margin
+    def calculate_min_sell(self, value):
+        cost = self.calculate_fees(value)
+        min_margin = self.min_margin + 1
+        value_with_margin = cost * min_margin
+        return round(value_with_margin, 2)
+
+
+
+    def calculate_fees(self, value):
+        fees = self.fees + 1
+        value_with_margin = value * fees
         return round(value_with_margin, 2)
 
     def parse_value(self, value):
@@ -123,7 +138,38 @@ class Main:
         return round(price, 2)
 
     def calculate_competitive_price(self, value):
-        return round(value + 0.01, 2)
+        value = float(value)
+        if self.mode == self.BUY:
+            value = round(value + 0.01, 2)
+        else:
+            value = round(value - 0.01, 2)
+        return value
+
+    def buy_mode(self, value, competitive_price=None):
+        margin_sell = self.calculate_margin_sell(value)
+        min_sell = self.calculate_min_sell(value)
+        cost = self.calculate_fees(value)
+        if not competitive_price:
+            competitive_price = self.calculate_competitive_price(value)
+        self.sell_price = competitive_price
+        clipboard.copy(competitive_price)
+
+        table_data = [
+            [
+                "Target Sell",
+                colored(comma_value(margin_sell), "grey", "on_red", attrs=["bold"]),
+            ],
+            ["Min Sell", comma_value(min_sell)],
+            ["Cost", comma_value(cost)],
+            ["Competitive Price", comma_value(competitive_price)],
+        ]
+        try:
+            for item in table_data:
+                print("{:<40}{}\n".format(item[0], item[1]))
+        except Exception as e:
+            print(e)            
+
+        return [margin_sell, min_sell]
 
 
     def get_results(self, data):
@@ -131,45 +177,14 @@ class Main:
         if not value:
             return
 
-        if self.mode == 0:
-            margin_sell = self.calculate_margin_sell(value)
-            cost = self.calculate_sell_cost(value)
+        if self.mode == self.BUY:
+            self.buy_mode(value)
+
+        if self.mode == self.SELL:
             competitive_price = self.calculate_competitive_price(value)
             self.sell_price = competitive_price
             clipboard.copy(competitive_price)
-
-            table_data = [
-                [
-                    "Min Sell",
-                    colored(comma_value(margin_sell), "grey", "on_red", attrs=["bold"]),
-                ],
-                ["Cost", comma_value(cost)],
-                ["Competitive Price", comma_value(competitive_price)],
-            ]
-            try:
-                for item in table_data:
-                    print("{:<40}{}\n".format(item[0], item[1]))
-            except Exception as e:
-                print(e)            
-
-        elif self.mode == 1:
-            margin_sell = self.calculate_margin_sell(value)
-            cost = self.calculate_sell_cost(value)
-            self.sell_price = margin_sell
-            clipboard.copy(margin_sell)
-
-            table_data = [
-                [
-                    "Min Sell",
-                    colored(comma_value(margin_sell), "grey", "on_red", attrs=["bold"]),
-                ],
-                ["Cost", comma_value(cost)],
-            ]
-            try:
-                for item in table_data:
-                    print("{:<40}{}\n".format(item[0], item[1]))
-            except Exception as e:
-                print(e)            
+            
 
 
     def run(self):
@@ -187,27 +202,20 @@ class Main:
                 t1.join()
                 self.clear_term()
                 quit()
-            sleep(1.0)
+            sleep(0.1)
             result = self.get_clip_data()
 
             if result == self.storage:
-                sleep(0.5)
+                sleep(0.1)
                 continue
             if result == str(self.sell_price):
-                sleep(0.5)
+                sleep(0.1)
                 continue
-            try:
-                self.storage = result
-                print("Self storage: %s" % self.storage)
-            except Exception as e:
-                print(e)
-            try:
-                self.clear_term()
-                self.display_header()
-                self.get_results(result)
-            except Exception as e:
-                print(e)
-                continue
+
+            self.storage = result
+            self.clear_term()
+            self.display_header()
+            self.get_results(result)
 
 
 
